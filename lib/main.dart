@@ -1,9 +1,18 @@
+import 'dart:typed_data';
+import 'package:metadata_god/metadata_god.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 
-void main() {
+void main() async {
+  try{
+  WidgetsFlutterBinding.ensureInitialized();
+  await MetadataGod.initialize();
   runApp(const MyApp());
+  } catch (e) {
+    print('Error al inicializar MetadataGod: $e');
+    runApp(const MyApp());
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -37,6 +46,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   bool _isPlaying = false;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
+  Uint8List? _albumArt;
 
   @override
   void initState() {
@@ -57,15 +67,30 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     });
   }
 
+
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.audio,
     );
 
     if (result != null) {
+      final path = result.files.single.path!;
       setState(() {
-        _currentSong = result.files.single.path;
+        _currentSong = path;
       });
+      
+      // Obtener metadatos
+      try {
+        final metadata = await MetadataGod.readMetadata(file: path);
+        setState(() {
+          if (metadata.picture != null) {
+            _albumArt = metadata.picture?.data;
+          }
+        });
+      } catch (e) {
+        print('Error al cargar metadatos: $e');
+      }
+
       await _audioPlayer.play(DeviceFileSource(_currentSong!));
       setState(() {
         _isPlaying = true;
@@ -145,13 +170,21 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
                       color: Colors.white24,
+                      image: _albumArt != null
+                        ? DecorationImage(
+                            image: MemoryImage(_albumArt!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                     ),
-                    child: const Icon(
-                      Icons.music_note,
-                      size: 100,
-                      color: Colors.white54,
-                    ),
-                  ),
+                        child: _albumArt == null
+                            ? const Icon(
+                                Icons.music_note,
+                                size: 100,
+                                color: Colors.white54,
+                                )
+                              : null,
+                        ),
                 ),
               ),
               
