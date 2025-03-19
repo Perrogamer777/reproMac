@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Reproductor',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.transparent
       ),
@@ -47,11 +47,13 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   Uint8List? _albumArt;
+  double _volume = 1.0;
 
   @override
   void initState() {
     super.initState();
     
+    _audioPlayer.setVolume(_volume);
     // Escucha los cambios de duración
     _audioPlayer.onDurationChanged.listen((newDuration) {
       setState(() {
@@ -70,7 +72,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
 
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
+      type: FileType.custom,
+      allowedExtensions: ['mp3','m4a','wav','flac','ogg','aac', 'aiff'],
     );
 
     if (result != null) {
@@ -126,7 +129,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.blue.shade800,
+              Colors.red.shade800,
               Colors.black,
             ],
           ),
@@ -259,7 +262,51 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                   ],
                 ),
               ),
-              
+              // Control de volumen
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 200, vertical: 0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.volume_down, 
+                      color: Colors.white, 
+                      size: 20,  // Icono más pequeño
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: Colors.white,
+                          inactiveTrackColor: Colors.white.withOpacity(0.2),
+                          thumbColor: Colors.white,
+                          trackHeight: 2,  // Altura más delgada
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,  // Thumb más pequeño
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 12,  // Área de toque más pequeña
+                          ),
+                        ),
+                        child: Slider(
+                          min: 0.0,
+                          max: 1.0,
+                          value: _volume,
+                          onChanged: (value) {
+                            setState(() {
+                              _volume = value;
+                              _audioPlayer.setVolume(_volume);
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.volume_up, 
+                      color: Colors.white, 
+                      size: 20,  // Icono más pequeño
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 5),  // Espacio reducido después de la barra
+
               // Controles de reproducción
               Padding(
                 padding: const EdgeInsets.all(20),
