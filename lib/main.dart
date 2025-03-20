@@ -3,6 +3,7 @@ import 'package:metadata_god/metadata_god.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 void main() async {
   try{
@@ -48,6 +49,86 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   Duration _position = Duration.zero;
   Uint8List? _albumArt;
   double _volume = 1.0;
+  List<String> _playlist = [];
+  int _currentIndex = 0;
+  String? _currentDirectory;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+
+  // Añade esto dentro de la clase _MusicPlayerPageState
+
+Widget _buildDrawer() {
+  return Drawer(
+    child: Container(
+      color: Colors.black87,
+      child: Column(
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.red.shade800,
+                  Colors.black87,
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.music_note,
+                  color: Colors.white,
+                  size: 50,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _currentDirectory?.split('/').last ?? 'No hay carpeta seleccionada',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _playlist.length,
+              itemBuilder: (context, index) {
+                final song = _playlist[index].split('/').last;
+                return ListTile(
+                  leading: Icon(
+                    Icons.music_note,
+                    color: _currentIndex == index ? Colors.red : Colors.white54,
+                  ),
+                  title: Text(
+                    song,
+                    style: TextStyle(
+                      color: _currentIndex == index ? Colors.red : Colors.white,
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _currentIndex = index;
+                      _playSong(_playlist[index]);
+                    });
+                    Navigator.pop(context); // Cierra el drawer
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   @override
   void initState() {
@@ -101,6 +182,59 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     }
   }
 
+  Future<void> _pickDirectory() async {
+    String? directoryPath = await FilePicker.platform.getDirectoryPath();
+    
+    if (directoryPath != null) {
+      setState(() {
+        _currentDirectory = directoryPath;
+      });
+      
+      // Buscar archivos de música en la carpeta
+      Directory directory = Directory(directoryPath);
+      List<String> supportedExtensions = ['mp3', 'm4a', 'wav', 'flac', 'ogg', 'aac', 'aiff'];
+      
+      List<String> musicFiles = directory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => supportedExtensions
+              .contains(file.path.split('.').last.toLowerCase()))
+          .map((file) => file.path)
+          .toList();
+      
+      setState(() {
+        _playlist = musicFiles;
+        if (_playlist.isNotEmpty) {
+          _currentIndex = 0;
+          _playSong(_playlist[_currentIndex]);
+        }
+      });
+    }
+  }
+
+  Future<void> _playSong(String path) async {
+    setState(() {
+      _currentSong = path;
+    });
+    
+    // Obtener metadatos
+    try {
+      final metadata = await MetadataGod.readMetadata(file: path);
+      setState(() {
+        if (metadata.picture != null) {
+          _albumArt = metadata.picture?.data;
+        }
+      });
+    } catch (e) {
+      print('Error al cargar metadatos: $e');
+    }
+
+    await _audioPlayer.play(DeviceFileSource(path));
+    setState(() {
+      _isPlaying = true;
+    });
+  }
+
   @override
   void dispose() {
     _audioPlayer.dispose();
@@ -123,6 +257,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDrawer(),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -144,16 +280,30 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.keyboard_arrow_down),
+                      icon: const Icon(Icons.queue_music),
                       color: Colors.white,
-                      onPressed: () {},
+                      onPressed: () {
+                        _scaffoldKey.currentState?.openDrawer();
+                      },
                     ),
-                    Text(
-                      'REPRODUCIENDO',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 12,
-                      ),
+                    Column(
+                      children: [
+                        Text(
+                          'REPRODUCIENDO DESDE',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (_currentDirectory != null)
+                          Text(
+                            _currentDirectory!.split('/').last,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 10,
+                            ),
+                          ),
+                      ],
                     ),
                     IconButton(
                       icon: const Icon(Icons.more_vert),
@@ -323,7 +473,14 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                       icon: const Icon(Icons.skip_previous),
                       color: Colors.white,
                       iconSize: 32,
-                      onPressed: () {},
+                      onPressed: () {
+                        if (_playlist.isNotEmpty && _currentIndex > 0) {
+                          setState(() {
+                            _currentIndex--;
+                            _playSong(_playlist[_currentIndex]);
+                          });
+                        }
+                      },
                     ),
                     Container(
                       decoration: const BoxDecoration(
@@ -352,7 +509,14 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                       icon: const Icon(Icons.skip_next),
                       color: Colors.white,
                       iconSize: 32,
-                      onPressed: () {},
+                      onPressed: () {
+                        if (_playlist.isNotEmpty && _currentIndex < _playlist.length - 1) {
+                          setState(() {
+                            _currentIndex++;
+                            _playSong(_playlist[_currentIndex]);
+                          });
+                        }
+                      },
                     ),
                     IconButton(
                       icon: const Icon(Icons.repeat),
@@ -369,9 +533,9 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _pickFile,
-        tooltip: 'Seleccionar canción',
-        child: const Icon(Icons.add),
+        onPressed: _pickDirectory,
+        tooltip: 'Seleccionar carpeta',
+        child: const Icon(Icons.folder),
       ),
     );
   }
