@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'dart:math';
 
 void main() async {
   try{
@@ -54,6 +56,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   String? _currentDirectory;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _isShuffleMode = false;
+  List<String>? _defaultCovers;
+  String? _currentDefaultCover;
 
 
   // Añade esto dentro de la clase _MusicPlayerPageState
@@ -134,7 +138,7 @@ Widget _buildDrawer() {
   @override
   void initState() {
     super.initState();
-    
+    _loadDefaultCovers();
     _audioPlayer.setVolume(_volume);
     // Escucha los cambios de duración
     _audioPlayer.onDurationChanged.listen((newDuration) {
@@ -151,6 +155,18 @@ Widget _buildDrawer() {
     });
   }
 
+  Future<void> _loadDefaultCovers() async {
+    try {
+      final manifestContent = await DefaultAssetBundle.of(context).loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+      
+      _defaultCovers = manifestMap.keys
+          .where((String key) => key.startsWith('assets/default_covers/'))
+          .toList();
+    } catch (e) {
+      print('Error cargando portadas por defecto: $e');
+    }
+  }
 
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -216,6 +232,10 @@ Widget _buildDrawer() {
   Future<void> _playSong(String path) async {
     setState(() {
       _currentSong = path;
+      _albumArt = null;
+      if (_defaultCovers != null && _defaultCovers!.isNotEmpty) {
+        _currentDefaultCover = _defaultCovers![Random().nextInt(_defaultCovers!.length)];
+      }
     });
     
     // Obtener metadatos
@@ -329,9 +349,14 @@ Widget _buildDrawer() {
                             image: MemoryImage(_albumArt!),
                             fit: BoxFit.cover,
                           )
-                        : null,
+                        : _currentDefaultCover != null
+                            ? DecorationImage(
+                                image: AssetImage(_currentDefaultCover!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                     ),
-                        child: _albumArt == null
+                        child: _albumArt == null && _currentDefaultCover == null
                             ? const Icon(
                                 Icons.music_note,
                                 size: 100,
