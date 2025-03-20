@@ -53,6 +53,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
   int _currentIndex = 0;
   String? _currentDirectory;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isShuffleMode = false;
 
 
   // Añade esto dentro de la clase _MusicPlayerPageState
@@ -464,10 +465,23 @@ Widget _buildDrawer() {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.shuffle),
-                      color: Colors.white,
+                      icon: Icon(Icons.shuffle,
+                        // El color cambia cuando está activo
+                        color: _isShuffleMode ? Colors.red : Colors.white,
+                      ),
                       iconSize: 32,
-                      onPressed: () {},
+                      onPressed: () {
+                        setState(() {
+                          _isShuffleMode = !_isShuffleMode;
+                          if (_isShuffleMode) {
+                            // Mezclar la lista de reproducción actual
+                            _playlist.shuffle();
+                          } else {
+                            // Restaurar el orden original si es necesario
+                            _playlist.sort();
+                          }
+                        });
+                      },
                     ),
                     IconButton(
                       icon: const Icon(Icons.skip_previous),
